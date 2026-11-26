@@ -1,0 +1,9 @@
+services:
+  radio-camera-bridge:
+    build: .
+    ports:
+      - "8090:8080"
+    environment:
+      - OHGO_API_KEY=${OHGO_API_KEY}
+      - RADIO_GAP_SECONDS=30
+    restart: unless-stopped
