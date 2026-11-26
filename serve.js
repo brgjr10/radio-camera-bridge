@@ -1,6 +1,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -8,6 +9,7 @@ const PORT = process.env.PORT || 8080;
 const OHGO_API_KEY = process.env.OHGO_API_KEY || '';
 const RADIO_GAP_SECONDS = Number(process.env.RADIO_GAP_SECONDS || 30);
 const ALLOW = new Set(['index.html','app.js','styles.css']);
+const TILE_UA = 'radio-camera-bridge/1.0 (contact: example@example.com)';
 
 let lastCall = null;
 const clients = new Set();
@@ -59,6 +61,36 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(r.status, { 'Content-Type': r.headers.get('content-type') || 'application/json' });
       res.end(txt);
     } catch (e) { send(res, 502, String(e)); }
+    return;
+  }
+  // tile proxy: /tile/:z/:x/:y -> OSM
+  const tileMatch = url.pathname.match(/^\/tile\/(\d+)\/(\d+)\/(\d+)$/);
+  if (req.method === 'GET' && tileMatch) {
+    const z = Number(tileMatch[1]);
+    const x = Number(tileMatch[2]);
+    const y = Number(tileMatch[3]);
+    const upstreamUrl = `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
+    let upstream;
+    try {
+      upstream = await fetch(upstreamUrl, { headers: { 'User-Agent': TILE_UA } });
+    } catch (e) {
+      send(res, 502, 'tile upstream error');
+      return;
+    }
+    if (!upstream.ok || !upstream.body) {
+      send(res, upstream.status || 502, 'tile error');
+      return;
+    }
+    res.writeHead(200, {
+      'Content-Type': 'image/png',
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'public, max-age=86400',
+    });
+    try {
+      Readable.fromWeb(upstream.body).pipe(res);
+    } catch (e) {
+      res.destroy();
+    }
     return;
   }
   // static allow-list

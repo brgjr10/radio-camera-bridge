@@ -1,5 +1,5 @@
 const map = L.map('map').setView([40.4,-82.9], 7);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM' }).addTo(map);
+L.tileLayer('/tile/{z}/{x}/{y}', { attribution: 'OSM' }).addTo(map);
 let cameras = [];
 let markers = {};
 
